@@ -1,0 +1,116 @@
+﻿@using Newtonsoft.Json
+@using Newtonsoft.Json.Linq
+@model ProjectMaster.Models.Tree[]
+
+@functions {
+
+    public static string Base64Encode(string plainText)
+    {
+        var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(plainText);
+        return System.Convert.ToBase64String(plainTextBytes);
+    }
+
+    private static void WriteTreeItem(JTokenWriter writer, ProjectMaster.Models.Tree tree)
+    {
+        writer.WriteStartObject();
+
+        writer.WritePropertyName("name");
+        writer.WriteValue(tree.Name);
+
+        writer.WritePropertyName("path");
+        writer.WriteValue(tree.Path);
+
+        writer.WritePropertyName("type");
+        writer.WriteValue(tree.Type.ToString("G").ToLowerInvariant());
+
+        if (tree.Type == ProjectMaster.Models.Tree.TreeType.Folder)
+        {
+            writer.WritePropertyName("children");
+            writer.WriteStartArray();
+
+            foreach (var childTree in tree.Children)
+            {
+                WriteTreeItem(writer, childTree);
+            }
+
+            writer.WriteEndArray();
+        }
+
+        writer.WriteEndObject();
+    }
+
+}
+
+@if (Model != null && Model.Length > 0)
+{
+    var writer = new JTokenWriter();
+    writer.WriteStartArray();
+    foreach (var tree in Model)
+    {
+        WriteTreeItem(writer, tree);
+    }
+    writer.WriteEndArray();
+
+    <!-- item template -->
+    <script type="text/x-template" id="item-template">
+        <li :class="{folder: isFolder,file: !isFolder,open: open}">
+            <span @@click="toggle">
+                <span :class="{'glyphicon': true, 'glyphicon-folder-close': isFolder && !open, 'glyphicon glyphicon-folder-open': isFolder && open, 'glyphicon-file': !isFolder}"></span>
+                <span>{{ model.name }}</span>
+            </span>
+            <ul v-show="open" v-if="isFolder">
+                <item class="item"
+                      v-for="(model, index) in model.children"
+                      :key="index"
+                      :model="model">
+                </item>
+            </ul>
+        </li>
+    </script>
+
+    <style>
+        #demo, #demo li { list-style: none; }
+    </style>
+
+    <!-- the demo root element -->
+    <ul id="demo">
+        <item v-for="treeItem in treeItems" class="item" :model="treeItem">
+        </item>
+    </ul>
+
+    <script>
+        // define the item component
+        Vue.component('item',
+            {
+                template: '#item-template',
+                props: {
+                    model: Object
+                },
+                data: function() {
+                    return {
+                        open: false
+                    }
+                },
+                computed: {
+                    isFolder: function() {
+                        return this.model.type === "folder";
+                    }
+                },
+                methods: {
+                    toggle: function() {
+                        if (this.isFolder) {
+                            this.open = !this.open
+                        }
+                    }
+                }
+            })
+
+        // boot up the demo
+        var demo = new Vue({
+            el: '#demo',
+            data: {
+                treeItems: JSON.parse(atob("@(Base64Encode(writer.Token.ToString(Formatting.Indented)))"))
+            }
+        });
+    </script>
+}

@@ -1,0 +1,450 @@
+﻿@using Newtonsoft.Json
+@using Newtonsoft.Json.Linq
+@model System.Collections.Generic.List<ProjectMaster.Models.Nuget.NugetInformationModel>
+
+@if (Model == null)
+{
+    <h1>Model is null</h1>
+}
+else if (Model.Count == 0)
+{
+    <h1>Model is empty</h1>
+}
+else
+{
+    var writer = new JTokenWriter();
+
+    writer.WriteStartObject();
+    writer.WritePropertyName("projects");
+    writer.WriteStartArray();
+    foreach (var nugetInformationModel in Model)
+    {
+        writer.WriteStartObject();
+
+        writer.WritePropertyName("name");
+        writer.WriteValue(nugetInformationModel.Project.Name);
+
+        writer.WritePropertyName("id");
+        writer.WriteValue(nugetInformationModel.Project.Id);
+
+        writer.WritePropertyName("ignored");
+        writer.WriteValue(nugetInformationModel.Project.Ignored);
+
+        writer.WritePropertyName("projects");
+        writer.WriteStartArray();
+
+        foreach (var project in nugetInformationModel.ProjectModels)
+        {
+            writer.WriteStartObject();
+
+            writer.WritePropertyName("assemblyName");
+            writer.WriteValue(project.AssemblyName);
+
+            writer.WritePropertyName("csprojFilePath");
+            writer.WriteValue(project.CsprojFilePath);
+
+            writer.WritePropertyName("nuspecPath");
+            writer.WriteValue(project.NuspecPath);
+
+            writer.WritePropertyName("nugetSpecification");
+            if (project.Self == null)
+            {
+                writer.WriteValue((object) null);
+            }
+            else
+            {
+                writer.WriteStartObject();
+
+                writer.WritePropertyName("id");
+                writer.WriteValue(project.Self.Id);
+
+                writer.WritePropertyName("version");
+                writer.WriteValue(project.Self.Version);
+
+                writer.WriteEndObject();
+            }
+
+            writer.WritePropertyName("dependencies");
+            writer.WriteStartArray();
+
+            foreach (var dependency in project.Dependencies)
+            {
+                writer.WriteStartObject();
+
+                writer.WritePropertyName("id");
+                writer.WriteValue(dependency.Id);
+
+                writer.WritePropertyName("version");
+                writer.WriteValue(dependency.Version);
+
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+    }
+    writer.WriteEndArray();
+    writer.WriteEndObject();
+
+    <pre style="display: none;" id="codepreview">@writer.Token.ToString(Formatting.Indented)</pre>
+
+    <style>
+        .main-model, .main-model ul:not(.clean-ul) > li, .main-model ul:not(.clean-ul) { list-style: none; }
+
+        .main-model, .main-model ul:not(.clean-ul) { padding-left: 0; }
+    </style>
+
+    <script type="text/x-template" id="main-template">
+        <div>
+            <div>
+                <div><label><input type="checkbox" v-model="filters.filterHideIgnored" /> Hide ignored</label></div>
+                <div><label><input type="checkbox" v-model="filters.filterHideWithoutProjects" /> Hide without projects</label></div>
+                <div><label><input type="checkbox" v-model="filters.filterHideWithoutUsagesOrDependencies" /> Hide without usages</label></div>
+                <div><label><input type="checkbox" v-model="filters.filterHideWithOnlyOneVersion" /> Hide with only one version used</label></div>
+                <div><label><input type="checkbox" v-model="filters.filterShowOnlyKnownDependencies" /> Show only known dependencies</label></div>
+            </div>
+            <ul class="main-model">
+                <gitproject v-for="gitproject in model.projects" :model="gitproject" :filters="filters">
+                    
+                </gitproject>
+            </ul>
+            
+            <button type="button" @@click="reportText = generateReportText()">Generate report</button>
+            <label><input type="checkbox" v-model="reportTextWithUsages" /> With usages list</label>
+            <pre>{{reportText}}</pre>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="gitproject-template">
+        <li v-if="isVisible">
+            <div class="panel panel-default">
+                <div class="panel-heading">{{ model.name }}</div>
+
+                <div class="panel-body">
+                    <span style="font-weight:bold;">Projects:</span>
+                    <ul>
+                        <li v-for="project in model.projects">
+                            <project-item :model="project" :filters="filters"></project-item>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </li>
+    </script>
+
+    <script type="text/x-template" id="project-template">
+        <div v-if="isVisible" class="panel panel-default">
+            <div class="panel-heading">
+                <span>{{ model.nugetSpecification != null ? (model.nugetSpecification.id + " (nuget)") :  model.assemblyName }}</span>
+            </div>
+            <div class="panel-body">
+                <div>
+                    <button @@click="dependenciesExpanded = !dependenciesExpanded" class="btn btn-default" v-bind="{'disabled': model.dependencies.length == 0}">
+                        <span :class="{'glyphicon': true, 'glyphicon-plus': !dependenciesExpanded, 'glyphicon-minus': dependenciesExpanded}"></span>
+                        Dependencies
+                    </button>
+                    <div v-if="dependenciesExpanded">
+                        <dependency-item v-for="dependency in model.dependencies" :model="dependency" :filters="filters">
+                        </dependency-item>
+                    </div>
+                </div>
+                <div>
+                    <button @@click="usedByExpanded = !usedByExpanded" class="btn btn-default" v-bind="{'disabled': model.foundVersions.length == 0}">
+                        <span :class="{'glyphicon': true, 'glyphicon-plus': !usedByExpanded, 'glyphicon-minus': usedByExpanded}"></span>
+                        Used by
+                    </button>
+                    <div v-if="usedByExpanded">
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <div class="panel panel-default" v-for="foundVersion in model.foundVersions">
+                                    <div class="panel-heading">{{foundVersion}}</div>
+                                    <div class="panel-body">
+                                        <div class="panel panel-default" v-for="dependency in model.usedBy" v-if="dependency.version == foundVersion">
+                                            <div class="panel-heading">
+                                                {{ dependency.parentProject.parentProject.name }} -> {{ dependency.parentProject.csprojFilePath }}
+                                            </div>
+                                            
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="dependency-template">
+        <div v-if="isVisible">
+            {{ model.id }}
+        </div>
+    </script>
+
+    <div id="mainView">
+        <main-view :model="mainModel"></main-view>
+    </div>
+
+    <script>
+        var data = @(Html.Raw(writer.Token.ToString(Formatting.Indented)));
+
+        var foreachGitProject = function(data, callback) {
+            for (var i = 0; i < data.projects.length; i++) {
+                callback(data.projects[i], i, data);
+            }
+        };
+
+        var foreachPackageProject = function(project, callback) {
+            for (var i = 0; i < project.projects.length; i++) {
+                callback(project.projects[i], i, project);
+            }
+        }
+
+        var foreachDependency = function(packageProject, callback) {
+            for (var i = 0; i < packageProject.dependencies.length; i++) {
+                var returnValue = callback(packageProject.dependencies[i], i, packageProject);
+                if (returnValue != undefined)
+                    i = returnValue;
+            }
+        }
+
+        // navigation and initial values
+        foreachGitProject(data,
+            function(project) {
+                foreachPackageProject(project,
+                    function(packageProject, _i, project) {
+                        packageProject.parentProject = project; // make it possible to navigate back
+                        packageProject.usedBy = [];
+                        packageProject.usages = 0;
+                        packageProject.foundVersions = [];
+
+                        foreachDependency(packageProject,
+                            function(dependency, m, packageProject) {
+                                dependency.parentProject = packageProject;
+                            });
+                    });
+            });
+
+        foreachGitProject(data,
+            function(project, i, data) {
+                foreachPackageProject(project,
+                    function(packageProject, j, project) {
+                        if (packageProject.nugetSpecification != null) {
+                            foreachGitProject(data,
+                                function(subProject, k, data) {
+                                    //if (subProject === project)
+                                    //    return;
+
+                                    foreachPackageProject(subProject,
+                                        function(subPackageProject, l, subProject) {
+
+                                            foreachDependency(subPackageProject,
+                                                function(dependency, m, subPackageProject) {
+                                                    if (dependency.id === packageProject.nugetSpecification.id) {
+                                                        dependency.package = packageProject;
+                                                        packageProject.usedBy.push(dependency);
+                                                        packageProject.usages++;
+                                                        if (packageProject.foundVersions.indexOf(dependency.version) == -1)
+                                                            packageProject.foundVersions.push(dependency.version);
+                                                    }
+                                                });
+                                        });
+                                });
+                        }
+                    });
+            });
+
+        // map all csproj nugetpackages (where only one assemblyname matches)
+        foreachGitProject(data,
+            function(project) {
+                foreachPackageProject(project,
+                    function(packageProject, _i, project) {
+                        foreachDependency(packageProject,
+                            function(dependency, m, packageProject) {
+                                if (dependency.package == null) {
+                                    // package has no parent.
+                                    // see if there is a project (only 1) matching with the assemblyname
+
+                                    var matches = data.projects.map(gp => gp.projects.filter(p => p.assemblyName === dependency.id)).reduce(function(a, b) { return a.concat(b); });
+                                    if (matches.length == 1) {
+                                        var foundPackage = matches[0];
+                                        dependency.package = foundPackage;
+                                        foundPackage.usedBy.push(dependency);
+                                        foundPackage.usages++;
+                                        if (foundPackage.foundVersions.indexOf(dependency.version) == -1)
+                                            foundPackage.foundVersions.push(dependency.version);
+                                    }
+                                }
+                            });
+                    });
+            });
+
+        // delete all not mentioned dependencies
+        /*foreachGitProject(data,
+            function(project) {
+                foreachPackageProject(project,
+                    function(packageProject, _i, project) {
+                        foreachDependency(packageProject,
+                            function(dependency, m, packageProject) {
+                                if (dependency.package == null) {
+                                    packageProject.dependencies.splice(m, 1);
+                                    return m - 1;
+                                }
+                            });
+                    });
+            });*/
+
+        Vue.component('dependency-item',
+            {
+                template: '#dependency-template',
+                props: {
+                    model: Object,
+                    filters: Object
+                },
+                data: function() {
+                    return {
+                    }
+                },
+                computed: {
+                    isVisible: function() {
+                        return (this.filters.filterShowOnlyKnownDependencies == false || this.model.package != null);
+                    }
+                },
+                methods: {
+                    toggleAll: function() {
+                        console.log("t");
+                    }
+                }
+            });
+
+        Vue.component('project-item',
+            {
+                template: '#project-template',
+                props: {
+                    model: Object,
+                    filters: Object
+                },
+                data: function() {
+                    return {
+                        dependenciesExpanded: false,
+                        usedByExpanded: false
+                    }
+                },
+                computed: {
+                    isVisible: function() {
+                        return (this.filters.filterHideWithoutUsagesOrDependencies == false || (this.model.usages > 0 || (this.filters.filterShowOnlyKnownDependencies ? this.model.dependencies.filter(d => d.package != null).length : this.model.dependencies.length) > 0)) && (this.filters.filterHideWithOnlyOneVersion == false || (this.model.foundVersions.length != 1));
+                    }
+                },
+                methods: {
+                    toggleAll: function() {
+                        console.log("t");
+                    }
+                }
+            });
+
+        Vue.component('gitproject',
+            {
+                template: '#gitproject-template',
+                props: {
+                    model: Object,
+                    filters: Object
+                },
+                data: function() {
+                    return {
+                    }
+                },
+                computed: {
+                    isVisible: function() {
+                        return (this.filters.filterHideIgnored == false || this.model.ignored == false) && (this.filters.filterHideWithoutProjects == false || this.model.projects.length > 0) && (this.filters.filterHideWithoutUsagesOrDependencies == false || this.model.projects.filter(p => p.usages > 0 || p.dependencies.length > 0).length > 0) && (this.filters.filterHideWithOnlyOneVersion == false || this.model.projects.filter(p => p.foundVersions.length !== 1).length > 0);
+                    }
+                },
+                methods: {
+                    toggleAll: function() {
+                        console.log("t");
+                    }
+                }
+            });
+
+        Vue.component('main-view',
+            {
+                template: '#main-template',
+                props: {
+                    model: Object
+                },
+                data: function() {
+                    return {
+                        filters: {
+                            filterHideIgnored: true,
+                            filterHideWithoutProjects: true,
+                            filterHideWithoutUsagesOrDependencies: true,
+                            filterHideWithOnlyOneVersion: false
+                        },
+                        reportText: "Press button above to load report",
+                        reportTextWithUsages: false
+                    }
+                },
+                computed: {
+                    allChecked: function() {
+
+
+                        return true;
+                    }
+                },
+                methods: {
+                    generateReportText: function() {
+                        var txt = "Unused/unknown dependencies:";
+
+                        var unknownDependencies = [];
+
+                        foreachGitProject(this.model,
+                            function(project, i, model) {
+                                foreachPackageProject(project,
+                                    function(packageProject, j, project) {
+                                        foreachDependency(packageProject,
+                                            function(dependency, k, packageProject) {
+                                                if (dependency.package == null) {
+                                                    if (unknownDependencies.filter(ud => ud.id === dependency.id).length == 0)
+                                                        unknownDependencies.push({ id: dependency.id, versions: [] });
+                                                    var unknownDependency = unknownDependencies.filter(ud => ud.id === dependency.id)[0];
+                                                    if (unknownDependency.versions.filter(v => v.version == dependency.version).length == 0)
+                                                        unknownDependency.versions.push({ version: dependency.version, usedBy: [] });
+                                                    var version = unknownDependency.versions.filter(v => v.version == dependency.version)[0];
+                                                    version.usedBy.push({ gitProjectName: dependency.parentProject.parentProject.name, csprojFilePath: dependency.parentProject.csprojFilePath });
+                                                }
+                                            });
+                                    });
+                            });
+
+                        for (var i = 0; i < unknownDependencies.length; i++) {
+                            txt += "\n";
+                            txt += "    Unused-PackageName: " + unknownDependencies[i].id;
+                            if (this.reportTextWithUsages === true)
+                                for (var j = 0; j < unknownDependencies[i].versions.length; j++) {
+                                    txt += "\n";
+                                    txt += "        " + unknownDependencies[i].versions[j].version;
+                                    for (var k = 0; k < unknownDependencies[i].versions[j].usedBy.length; k++) {
+                                        txt += "\n";
+                                        txt += "            " + unknownDependencies[i].versions[j].usedBy[k].gitProjectName;
+                                        txt += " -> " + unknownDependencies[i].versions[j].usedBy[k].csprojFilePath;
+                                    }
+                                }
+                        }
+
+                        return txt;
+                    }
+                }
+            });
+
+        var projectList = new Vue({
+            el: '#mainView',
+            data: {
+                mainModel: data
+            }
+        });
+    </script>
+}

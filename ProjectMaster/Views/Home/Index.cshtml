@@ -1,0 +1,32 @@
+﻿@model GitProjectModel[]
+
+<div class="row">
+    <div class="col-lg-12">
+        @if (Model == null)
+        {
+            <span>Model is null</span>
+        }
+        else if (Model.Length == 0)
+        {
+            <span>No project providers</span>
+        }
+        else
+        {
+            <h2>Projects (@(Model.Length))</h2>
+            foreach (var projectModel in Model)
+            {
+                if (projectModel.Ignored == false)
+                {
+                    <h3>@projectModel.Name</h3>
+                    <p>
+                        <a href="@Url.Action("Config", new {projectId = projectModel.Id})" class="btn btn-default">Modify</a>
+                        <a href="@Url.Action("ViewFiles", new {projectId = projectModel.Id})" class="btn btn-default">View files</a>
+                    </p>
+                }
+            }
+        }
+        <div>
+            <a href="@Url.Action("Config")" class="btn btn-success">@((Model == null || Model.Length == 0) ? "Click here to add first project" : "Add new project")</a>
+        </div>
+    </div>
+</div>

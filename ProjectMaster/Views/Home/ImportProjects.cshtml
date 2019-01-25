@@ -1,0 +1,358 @@
+﻿@model object
+
+@using System.Web
+
+@{
+
+    <script type="text/x-template" id="form-template">
+        <div class="panel panel-default">
+            <div class="panel-heading">Panel heading without title <input type="checkbox" v-model="visible" /></div>
+            <div class="panel-body">
+                <div v-if="visible">
+                    <div class="form-group">
+                        <label>Gitlab provider</label>
+                        <select class="form-control" v-model="provider">
+                            <option value="none">None</option>
+                            <option value="gitlab">Gitlab</option>
+                        </select>
+                        <span>Selected: {{ provider }} </span>
+                    </div>
+                    <div v-if="provider == 'none'">
+                        <span>Please select a provider</span>
+                    </div>
+                    <div v-else-if="provider == 'gitlab'">
+                        <div class="form-group">
+                            <label>Gitlab group name</label>
+                            <input type="text" v-model="gitlabGroupName">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Gitlab private_token</label>
+                            <input type="password" v-model="gitlabPrivateToken">
+                        </div>
+                        <button type="button" class="btn btn-primary" v-bind="{'disabled': disableButton || gitlabGroupName.length == 0 || gitlabPrivateToken.length == 0}" @@click="gitlabRequest()">{{ gitlabButtonText }}</button>
+                    </div>
+                </div>
+                <div v-else>
+                    <i>hidden</i>
+                </div>
+            </div>
+        </div>
+</script>
+
+    <script type="text/x-template" id="item-template">
+        <div>
+            <div class="items-filter panel panel-default">
+                <div class="panel-heading">Filters</div>
+                <div class="panel-body">
+                    <div>
+                        <div><label>Show already added:</label></div>
+                        <div>
+                            <div>
+                                <label>
+                                    <input type="radio" value="all" v-model="filterAdded" /> all
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input type="radio" value="true" v-model="filterAdded" /> checked
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input type="radio" value="false" v-model="filterAdded" /> unchecked
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div><label>Show marked for add:</label></div>
+                        <div>
+                            <div>
+                                <label>
+                                    <input type="radio" value="all" v-model="filterAdd" /> all
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input type="radio" value="true" v-model="filterAdd" /> checked
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input type="radio" value="false" v-model="filterAdd" /> unchecked
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <td>Name</td>
+                        <td>Git url</td>
+                        <td>Status</td>
+                        <td>Add<input type="checkbox" v-bind:indeterminate.prop="!allChecked && !allUnchecked" @@click="toggleAll()" v-model="allCheckbox" /></td>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template v-for="projectItem in model">
+                        <tr v-if="
+                        (filterAdded === 'all' || (projectItem.added === true && filterAdded === 'true') || (projectItem.added === false && filterAdded === 'false'))
+                        && (filterAdd === 'all' || (projectItem.add === true && filterAdd === 'true') || (projectItem.add === false && filterAdd === 'false'))
+                        ">
+                            <td>{{ projectItem.name }}</td>
+                            <td>{{ projectItem.url }}</td>
+                            <td>{{ projectItem.status }}</td>
+                            <td>
+                                <input v-bind="{'disabled': projectItem.added}" type="checkbox" v-model="projectItem.add" />
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            
+            <div class="panel panel-default">
+                <div class="panel-heading">Add selected projects</div>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" v-model="authenticationUsername" />
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" v-model="authenticationPassword" />
+                    </div>
+                    <button type="button" @@click="addSelectedProjects()">Add projects</button>
+                </div>
+            </div>
+            
+        </div>
+    </script>
+
+    <style>
+        #projectList, #projectList li { list-style: none; }
+    </style>
+
+    <div id="providerForm">
+        <provider-form></provider-form>
+    </div>
+
+    <div id="projectList">
+        <item :model="projectItems">
+        </item>
+    </div>
+
+    <script>
+        var projectArray = [];
+
+        /*
+         
+         fetch(url, {
+                method: "POST",
+                cache: "no-cache",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+
+         */
+
+        Vue.component('provider-form',
+            {
+                template: '#form-template',
+                props: {
+                    model: Object
+                },
+                data: function() {
+                    return {
+                        provider: "",
+                        gitlabGroupName: "",
+                        gitlabPrivateToken: "",
+                        disableButton: false,
+                        gitlabButtonText: "Get projects",
+                        visible: true
+                    }
+                },
+                computed: {
+                    isFolder: function() {
+                        return this.model.type === "folder";
+                    }
+                },
+                methods: {
+                    gitlabRequest: function() {
+                        var groupName = this.gitlabGroupName;
+                        var privateToken = this.gitlabPrivateToken;
+
+                        var oldText = this.gitlabButtonText;
+
+                        var dis = this;
+
+                        this.disableButton = true;
+                        this.gitlabButtonText = "Loading";
+
+                        var data = {
+                            GroupName: groupName,
+                            PrivateToken: privateToken
+                        };
+
+                        fetch("@(Html.Raw(HttpUtility.JavaScriptStringEncode(Url.Action("ImportProjectAjax", new {method = "gitlab"}))))",
+                                {
+                                    method: "POST",
+                                    cache: "no-cache",
+                                    headers: {
+                                        "Content-Type": "application/json"
+                                    },
+                                    body: JSON.stringify(data)
+                                })
+                            .then(function(response) {
+                                return response.json();
+                            })
+                            .then(function(json) {
+                                if (json.status === "OK") {
+                                    for (var i = 0; i < json.projects.length; i++) {
+                                        var item = JSON.parse(JSON.stringify(json.projects[i]));
+                                        item.status = "";
+                                        item.add = false;
+                                        item.icon = "";
+                                        projectArray.push(item);
+                                    }
+                                } else {
+                                    alert(json.message);
+                                }
+                                dis.disableButton = false;
+                                dis.gitlabButtonText = oldText;
+                            });
+                    }
+                }
+            });
+
+        var addNewProject = function(model, auth) {
+            try {
+                model.icon = "loading";
+                model.status += "\nAdding project";
+
+                var data = {
+                    name: model.name,
+                    url: model.url,
+                    auth: auth
+                };
+
+                fetch("@Url.Action("AddNewProject")",
+                        {
+                            method: "POST",
+                            cache: "no-cache",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify(data)
+                        })
+                    .then(function(response) {
+                        return response.json();
+                    }).then(function(json) {
+                        model.status += "\nAdded with result: " + json.status;
+                        if (json.status === "OK") {
+                            model.status += "\nFetching project...";
+                            fetch("@Url.Action("FetchProject")",
+                                    {
+                                        method: "POST",
+                                        cache: "no-cache",
+                                        headers: {
+                                            "Content-Type": "application/json"
+                                        },
+                                        body: JSON.stringify({
+                                            projectId: json.projectId
+                                        })
+                                    })
+                                .then(function(response) {
+                                    return response.json();
+                                })
+                                .then(function(json2) {
+                                    model.status += "\nFetched with result: " + json2.status;
+                                    if (json2.status === "OK") {
+                                        model.status += "\nDone successfully";
+                                    } else {
+                                        model.icon = "error";
+                                        model.status += "\nError!";
+                                        console.error(model.name);
+                                        throw "fetch resturned " + json2.status;
+                                    }
+                                });
+                        } else {
+                            model.icon = "error";
+                            model.status += "\nError!";
+                            console.error(model.name);
+                            throw "add resturned " + json.status;
+                        }
+                    });
+            } catch (e) {
+                model.icon = "error";
+                model.status += "\nError!";
+                console.error(model.name);
+                throw e;
+            }
+        }
+
+        Vue.component('item',
+            {
+                template: '#item-template',
+                props: {
+                    model: Array
+                },
+                data: function() {
+                    return {
+                        allCheckbox: false,
+                        filterAdded: "all",
+                        filterAdd: "all",
+                        authenticationUsername: "",
+                        authenticationPassword: ""
+                    }
+                },
+                computed: {
+                    allChecked: function() {
+                        var base = this.model.filter(m => m.added === false);
+                        return base.filter(m => m.add === true).length === base.length;
+                    },
+                    allUnchecked: function() {
+                        var base = this.model.filter(m => m.added === false);
+                        return base.filter(m => m.add === false).length === base.length;
+                    }
+                },
+                methods: {
+                    toggleAll: function() {
+                        var checked = this.allCheckbox;
+                        console.log("checkbox:", checked);
+                        var newValue = !checked;
+                        for (var i = 0; i < this.model.length; i++) {
+                            this.model[i].add = newValue;
+                        }
+                    },
+                    addSelectedProjects: function() {
+                        var auth = { username: this.authenticationUsername, password: this.authenticationPassword };
+                        for (var i = 0; i < this.model.length; i++) {
+                            if (this.model[i].add) {
+                                addNewProject(this.model[i], auth);
+                            }
+                        }
+                    }
+                }
+            });
+
+        var providerForm = new Vue({
+            el: '#providerForm',
+            data: {
+            }
+        });
+
+        // boot up the projectList
+        var projectList = new Vue({
+            el: '#projectList',
+            data: {
+                projectItems: projectArray
+            }
+        });
+    </script>
+}

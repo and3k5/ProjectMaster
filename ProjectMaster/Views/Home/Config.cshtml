@@ -1,0 +1,56 @@
+﻿@model ProjectMaster.Models.GitProjectModel
+
+@functions
+{
+
+    public static string Base64Encode(string plainText)
+    {
+        var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(plainText);
+        return System.Convert.ToBase64String(plainTextBytes);
+    }
+
+}
+
+@if (Model.Id == 0)
+{
+    <h1>New model</h1>
+}
+else
+{
+    <h1>Edit @Model.Name</h1>
+}
+@using (Html.BeginForm())
+{
+    @Html.HiddenFor(m => m.Id)
+
+    <div class="form-group">
+        <label for="@Html.IdFor(m => m.Name)">@Html.DisplayNameFor(m => m.Name)</label>
+        <input id="@Html.IdFor(m => m.Name)" type="text" class="form-control" name="@Html.NameFor(m => m.Name)" value="@Html.ValueFor(m => m.Name)">
+    </div>
+
+    <div class="form-group">
+        <label for="@Html.IdFor(m => m.GitUrl)">@Html.DisplayNameFor(m => m.GitUrl)</label>
+        <input id="@Html.IdFor(m => m.GitUrl)" type="text" class="form-control" name="@Html.NameFor(m => m.GitUrl)" value="@Html.ValueFor(m => m.GitUrl)">
+    </div>
+
+    <div class="form-group">
+        <label for="@Html.IdFor(m => m.Ignored)">@Html.DisplayNameFor(m => m.Ignored)</label>
+        @Html.EditorFor(m => m.Ignored)
+    </div>
+
+    <div class="form-group">
+        <label for="@Html.IdFor(m => m.Authentication.Username)">@Html.DisplayNameFor(m => m.Authentication.Username)</label>
+        <input id="@Html.IdFor(m => m.Authentication.Username)" type="text" class="form-control" name="@Html.NameFor(m => m.Authentication.Username)" value="@Html.ValueFor(m => m.Authentication.Username)">
+    </div>
+
+    <div class="form-group">
+        <label for="@Html.IdFor(m => m.Authentication.Password)">@Html.DisplayNameFor(m => m.Authentication.Password)</label>
+        <input id="@Html.IdFor(m => m.Authentication.Password)" type="password" class="form-control" name="@Html.NameFor(m => m.Authentication.Password)" value="@Html.ValueFor(m => m.Authentication.Password)">
+    </div>
+
+    <button type="submit" class="btn btn-primary">@(Model.Id == 0 ? "Create" : "Save")</button>
+    if (Model.Id > 0)
+    {
+        <button type="submit" formaction="@Url.Action("Delete")" onclick="return prompt('Type name of project to confirm delete:') === atob('@Base64Encode(Model.Name)');" class="btn btn-danger">Delete</button>
+    }
+}
