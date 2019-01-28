@@ -110,10 +110,10 @@ else
             </div>
             <ul class="main-model">
                 <gitproject v-for="gitproject in model.projects" :model="gitproject" :filters="filters">
-                    
+
                 </gitproject>
             </ul>
-            
+
             <button type="button" @@click="reportText = generateReportText()">Generate report</button>
             <label><input type="checkbox" v-model="reportTextWithUsages" /> With usages list</label>
             <pre>{{reportText}}</pre>
