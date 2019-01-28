@@ -11,6 +11,7 @@ using Newtonsoft.Json.Linq;
 using ProjectMaster.Models;
 using ProjectMaster.Models.Nuget;
 using ProjectMaster.Utilities;
+using Formatting = Newtonsoft.Json.Formatting;
 using Tree = ProjectMaster.Models.Tree;
 
 namespace ProjectMaster.Controllers
@@ -19,50 +20,105 @@ namespace ProjectMaster.Controllers
     {
         public IActionResult ViewAll()
         {
-            var projects = mainService.GetProjectModels();
-
-            var model = new List<NugetInformationModel>();
-            var oic = StringComparison.OrdinalIgnoreCase;
-            var tasks = new List<Task>();
-            foreach (var project in projects)
-            {
-                tasks.Add(Task.Run(() => GetNugetInformation(project, model, oic)));
-            }
-
-            var whenAll = Task.WhenAll(tasks);
-            while (!whenAll.Wait(1000))
-            {
-                Console.WriteLine("Total: " + tasks.Count + ". " + string.Join(", ", tasks.GroupBy(t => t.Status.ToString("G")).Select(x =>
-                {
-                    var count = x.Count();
-                    return x.Key + ": " + x.Count() + " (" + Math.Round(((decimal) count / tasks.Count) * 10000) / 10 + "%)";
-                })));
-            }
-
-            var exceptions = new List<Exception>();
-
-            foreach (var task in tasks)
-            {
-                if (!task.IsCompletedSuccessfully)
-                {
-                    if (task.Exception != null)
-                    {
-                        exceptions.Add(task.Exception);
-                    }
-                    else
-                    {
-                        exceptions.Add(new Exception("Task returned: " + task.Status.ToString("G")));
-                    }
-                }
-            }
-
-            if (exceptions.Any())
-                throw new AggregateException("Tasks has errors", exceptions);
-
-            return View(model);
+            return View();
         }
 
-        private static void GetNugetInformation(GitProjectModel project, List<NugetInformationModel> model, StringComparison oic)
+        public IActionResult GetNugetProjects()
+        {
+            var projects = mainService.GetProjectModels();
+
+            var ids = projects.Select(p => p.Id).ToArray();
+
+            return Json(new {projectIds = ids});
+        }
+
+        public IActionResult GetNugetInformation(int projectId)
+        {
+            var project = mainService.GetProjectModel(projectId);
+
+            var information = GetNugetInformation(project, StringComparison.OrdinalIgnoreCase);
+
+            var token = NugetInfoJson(information);
+
+            return Content(token.ToString(Program.Debug ? Formatting.Indented : Formatting.None), "application/json");
+        }
+
+        private static JToken NugetInfoJson(NugetInformationModel nugetInformationModel)
+        {
+            var writer = new JTokenWriter();
+            writer.WriteStartObject();
+
+            writer.WritePropertyName("name");
+            writer.WriteValue(nugetInformationModel.Project.Name);
+
+            writer.WritePropertyName("id");
+            writer.WriteValue(nugetInformationModel.Project.Id);
+
+            writer.WritePropertyName("ignored");
+            writer.WriteValue(nugetInformationModel.Project.Ignored);
+
+            writer.WritePropertyName("projects");
+            writer.WriteStartArray();
+
+            foreach (var project in nugetInformationModel.ProjectModels)
+            {
+                writer.WriteStartObject();
+
+                writer.WritePropertyName("assemblyName");
+                writer.WriteValue(project.AssemblyName);
+
+                writer.WritePropertyName("csprojFilePath");
+                writer.WriteValue(project.CsprojFilePath);
+
+                writer.WritePropertyName("nuspecPath");
+                writer.WriteValue(project.NuspecPath);
+
+                writer.WritePropertyName("nugetSpecification");
+                if (project.Self == null)
+                {
+                    writer.WriteValue((object) null);
+                }
+                else
+                {
+                    writer.WriteStartObject();
+
+                    writer.WritePropertyName("id");
+                    writer.WriteValue(project.Self.Id);
+
+                    writer.WritePropertyName("version");
+                    writer.WriteValue(project.Self.Version);
+
+                    writer.WriteEndObject();
+                }
+
+                writer.WritePropertyName("dependencies");
+                writer.WriteStartArray();
+
+                foreach (var dependency in project.Dependencies)
+                {
+                    writer.WriteStartObject();
+
+                    writer.WritePropertyName("id");
+                    writer.WriteValue(dependency.Id);
+
+                    writer.WritePropertyName("version");
+                    writer.WriteValue(dependency.Version);
+
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+
+            return writer.Token;
+        }
+
+        private static NugetInformationModel GetNugetInformation(GitProjectModel project, StringComparison oic)
         {
             void IterateTree(Tree[] trees, List<NugetMetaObject> nugetMetaObjects)
             {
@@ -106,7 +162,6 @@ namespace ProjectMaster.Controllers
 
                 var nugetInfo = new NugetInformationModel();
                 nugetInfo.Project = project;
-                model.Add(nugetInfo);
                 // search for definitions
                 var nuspecs = nugetMeta.Where(m => m.Type == NugetMetaObject.NugetMetaObjectType.Nuspec).ToArray();
                 //if (nuspecs.Length > 1)
@@ -367,6 +422,8 @@ namespace ProjectMaster.Controllers
                         nugetInfo.ProjectModels.Add(nugetProjectModel);
                     }
                 }
+
+                return nugetInfo;
             }
         }
     }

@@ -1,105 +1,10 @@
-﻿@using Newtonsoft.Json
-@using Newtonsoft.Json.Linq
-@model System.Collections.Generic.List<ProjectMaster.Models.Nuget.NugetInformationModel>
+﻿    <style>
+    .main-model, .main-model ul:not(.clean-ul) > li, .main-model ul:not(.clean-ul) { list-style: none; }
 
-@if (Model == null)
-{
-    <h1>Model is null</h1>
-}
-else if (Model.Count == 0)
-{
-    <h1>Model is empty</h1>
-}
-else
-{
-    var writer = new JTokenWriter();
+    .main-model, .main-model ul:not(.clean-ul) { padding-left: 0; }
+</style>
 
-    writer.WriteStartObject();
-    writer.WritePropertyName("projects");
-    writer.WriteStartArray();
-    foreach (var nugetInformationModel in Model)
-    {
-        writer.WriteStartObject();
-
-        writer.WritePropertyName("name");
-        writer.WriteValue(nugetInformationModel.Project.Name);
-
-        writer.WritePropertyName("id");
-        writer.WriteValue(nugetInformationModel.Project.Id);
-
-        writer.WritePropertyName("ignored");
-        writer.WriteValue(nugetInformationModel.Project.Ignored);
-
-        writer.WritePropertyName("projects");
-        writer.WriteStartArray();
-
-        foreach (var project in nugetInformationModel.ProjectModels)
-        {
-            writer.WriteStartObject();
-
-            writer.WritePropertyName("assemblyName");
-            writer.WriteValue(project.AssemblyName);
-
-            writer.WritePropertyName("csprojFilePath");
-            writer.WriteValue(project.CsprojFilePath);
-
-            writer.WritePropertyName("nuspecPath");
-            writer.WriteValue(project.NuspecPath);
-
-            writer.WritePropertyName("nugetSpecification");
-            if (project.Self == null)
-            {
-                writer.WriteValue((object) null);
-            }
-            else
-            {
-                writer.WriteStartObject();
-
-                writer.WritePropertyName("id");
-                writer.WriteValue(project.Self.Id);
-
-                writer.WritePropertyName("version");
-                writer.WriteValue(project.Self.Version);
-
-                writer.WriteEndObject();
-            }
-
-            writer.WritePropertyName("dependencies");
-            writer.WriteStartArray();
-
-            foreach (var dependency in project.Dependencies)
-            {
-                writer.WriteStartObject();
-
-                writer.WritePropertyName("id");
-                writer.WriteValue(dependency.Id);
-
-                writer.WritePropertyName("version");
-                writer.WriteValue(dependency.Version);
-
-                writer.WriteEndObject();
-            }
-
-            writer.WriteEndArray();
-
-            writer.WriteEndObject();
-        }
-
-        writer.WriteEndArray();
-        writer.WriteEndObject();
-    }
-    writer.WriteEndArray();
-    writer.WriteEndObject();
-
-    <pre style="display: none;" id="codepreview">@writer.Token.ToString(Formatting.Indented)</pre>
-
-    <style>
-        .main-model, .main-model ul:not(.clean-ul) > li, .main-model ul:not(.clean-ul) { list-style: none; }
-
-        .main-model, .main-model ul:not(.clean-ul) { padding-left: 0; }
-    </style>
-
-    <script type="text/x-template" id="main-template">
+<script type="text/x-template" id="main-template">
         <div>
             <div>
                 <div><label><input type="checkbox" v-model="filters.filterHideIgnored" /> Hide ignored</label></div>
@@ -120,7 +25,7 @@ else
         </div>
     </script>
 
-    <script type="text/x-template" id="gitproject-template">
+<script type="text/x-template" id="gitproject-template">
         <li v-if="isVisible">
             <div class="panel panel-default">
                 <div class="panel-heading">{{ model.name }}</div>
@@ -137,10 +42,14 @@ else
         </li>
     </script>
 
-    <script type="text/x-template" id="project-template">
+<script type="text/x-template" id="project-template">
         <div v-if="isVisible" class="panel panel-default">
             <div class="panel-heading">
-                <span>{{ model.nugetSpecification != null ? (model.nugetSpecification.id + " (nuget)") :  model.assemblyName }}</span>
+                <span>{{ model.nugetSpecification != null ? (model.nugetSpecification.id) :  model.assemblyName }}</span>
+                <span class="btn btn-info" v-if="model.nugetSpecification != null">#nuspec</span>
+                <span class="btn btn-info" v-if="model.usageType === 'nuget'">#nuget</span>
+                <span class="btn btn-info" v-if="model.usageType === 'assumed'">#assumed-nuget</span>
+                <span class="btn btn-info" v-if="model.usedBy.length === 0">#not-used</span>
             </div>
             <div class="panel-body">
                 <div>
@@ -176,7 +85,7 @@ else
         </div>
     </script>
 
-    <script type="text/x-template" id="usedby-template">
+<script type="text/x-template" id="usedby-template">
         <div class="panel panel-default">
             <div class="panel-heading" @@click="expanded = !expanded">
                 {{ model.parentProject.parentProject.name }} -> {{ model.parentProject.csprojFilePath }}
@@ -188,76 +97,62 @@ else
         </div>
     </script>
 
-    <script type="text/x-template" id="dependency-template">
+<script type="text/x-template" id="dependency-template">
         <div v-if="isVisible">
             {{ model.id }}
         </div>
     </script>
 
-    <div id="mainView">
-        <main-view :model="mainModel"></main-view>
+<div id="mainView">
+    <div v-if="!mainModel.loaded">
+        <div>{{ loadingText }}</div>
+        <div>
+            <progress v-bind="{'max': mainModel.projects.length,'value': mainModel.projects.filter(p => p.loaded).length}"></progress>
+        </div>
     </div>
+    <main-view v-else="mainModel.loaded" :model="mainModel"></main-view>
+</div>
 
-    <script>
-        var data = @(Html.Raw(writer.Token.ToString(Formatting.Indented)));
-
-        var foreachGitProject = function(data, callback) {
-            for (var i = 0; i < data.projects.length; i++) {
-                callback(data.projects[i], i, data);
-            }
-        };
-
-        var foreachPackageProject = function(project, callback) {
-            for (var i = 0; i < project.projects.length; i++) {
-                callback(project.projects[i], i, project);
-            }
+<script>
+    var foreachGitProject = function(data, callback) {
+        for (var i = 0; i < data.projects.length; i++) {
+            callback(data.projects[i], i, data);
         }
+    };
 
-        var foreachDependency = function(packageProject, callback) {
-            for (var i = 0; i < packageProject.dependencies.length; i++) {
-                var returnValue = callback(packageProject.dependencies[i], i, packageProject);
-                if (returnValue != undefined)
-                    i = returnValue;
-            }
+    var foreachPackageProject = function(project, callback) {
+        for (var i = 0; i < project.projects.length; i++) {
+            callback(project.projects[i], i, project);
         }
+    }
 
-        // navigation and initial values
-        foreachGitProject(data,
-            function(project) {
-                foreachPackageProject(project,
-                    function(packageProject, _i, project) {
-                        packageProject.parentProject = project; // make it possible to navigate back
-                        packageProject.usedBy = [];
-                        packageProject.usages = 0;
-                        packageProject.foundVersions = [];
+    var foreachDependency = function(packageProject, callback) {
+        for (var i = 0; i < packageProject.dependencies.length; i++) {
+            var returnValue = callback(packageProject.dependencies[i], i, packageProject);
+            if (returnValue != undefined)
+                i = returnValue;
+        }
+    }
 
-                        foreachDependency(packageProject,
-                            function(dependency, m, packageProject) {
-                                dependency.parentProject = packageProject;
-                            });
-                    });
-            });
-
+    var initializeData = function(data) {
         foreachGitProject(data,
             function(project, i, data) {
                 foreachPackageProject(project,
-                    function(packageProject, j, project) {
+                    function(packageProject) {
                         if (packageProject.nugetSpecification != null) {
                             foreachGitProject(data,
-                                function(subProject, k, data) {
-                                    //if (subProject === project)
-                                    //    return;
-
+                                function(subProject) {
                                     foreachPackageProject(subProject,
-                                        function(subPackageProject, l, subProject) {
+                                        function(subPackageProject) {
 
                                             foreachDependency(subPackageProject,
-                                                function(dependency, m, subPackageProject) {
+                                                function(dependency) {
                                                     if (dependency.id === packageProject.nugetSpecification.id) {
                                                         dependency.package = packageProject;
                                                         packageProject.usedBy.push(dependency);
                                                         packageProject.usages++;
-                                                        if (packageProject.foundVersions.indexOf(dependency.version) == -1)
+                                                        packageProject.usageType = "nuget";
+                                                        if (packageProject.foundVersions.indexOf(dependency.version) === -1)
                                                             packageProject.foundVersions.push(dependency.version);
                                                     }
                                                 });
@@ -271,215 +166,293 @@ else
         foreachGitProject(data,
             function(project) {
                 foreachPackageProject(project,
-                    function(packageProject, _i, project) {
+                    function(packageProject) {
                         foreachDependency(packageProject,
-                            function(dependency, m, packageProject) {
+                            function(dependency) {
                                 if (dependency.package == null) {
                                     // package has no parent.
                                     // see if there is a project (only 1) matching with the assemblyname
 
                                     var matches = data.projects.map(gp => gp.projects.filter(p => p.assemblyName === dependency.id)).reduce(function(a, b) { return a.concat(b); });
-                                    if (matches.length == 1) {
+                                    if (matches.length === 1) {
                                         var foundPackage = matches[0];
                                         dependency.package = foundPackage;
                                         foundPackage.usedBy.push(dependency);
                                         foundPackage.usages++;
-                                        if (foundPackage.foundVersions.indexOf(dependency.version) == -1)
+                                        foundPackage.usageType = "assumed";
+                                        if (foundPackage.foundVersions.indexOf(dependency.version) === -1)
                                             foundPackage.foundVersions.push(dependency.version);
                                     }
                                 }
                             });
                     });
             });
+    };
 
-        // delete all not mentioned dependencies
-        /*foreachGitProject(data,
-            function(project) {
-                foreachPackageProject(project,
-                    function(packageProject, _i, project) {
-                        foreachDependency(packageProject,
-                            function(dependency, m, packageProject) {
-                                if (dependency.package == null) {
-                                    packageProject.dependencies.splice(m, 1);
-                                    return m - 1;
-                                }
-                            });
-                    });
-            });*/
-
-        Vue.component('usedby-item',
-            {
-                template: '#usedby-template',
-                props: {
-                    model: Object,
-                    filters: Object
-                },
-                data: function() {
-                    return {
-                        expanded: false,
-                        report: ""
-                    }
-                },
-                computed: {
-                    isVisible: function() {
-                        return (this.filters.filterShowOnlyKnownDependencies == false || this.model.package != null);
-                    }
-                },
-                methods: {
-                    toggleAll: function() {
-
-                        return "";
-                    }
+    Vue.component('usedby-item',
+        {
+            template: '#usedby-template',
+            props: {
+                model: Object,
+                filters: Object
+            },
+            data: function() {
+                return {
+                    expanded: false,
+                    report: ""
                 }
-            });
-
-        Vue.component('dependency-item',
-            {
-                template: '#dependency-template',
-                props: {
-                    model: Object,
-                    filters: Object
-                },
-                data: function() {
-                    return {
-                    }
-                },
-                computed: {
-                    isVisible: function() {
-                        return (this.filters.filterShowOnlyKnownDependencies == false || this.model.package != null);
-                    }
-                },
-                methods: {
-                    toggleAll: function() {
-                        console.log("t");
-                    }
+            },
+            computed: {
+                isVisible: function() {
+                    return (this.filters.filterShowOnlyKnownDependencies === false || this.model.package != null);
                 }
-            });
+            },
+            methods: {
+                toggleAll: function() {
 
-        Vue.component('project-item',
-            {
-                template: '#project-template',
-                props: {
-                    model: Object,
-                    filters: Object
-                },
-                data: function() {
-                    return {
-                        dependenciesExpanded: false,
-                        usedByExpanded: false,
-                        usedByOnlyMultiple: false
-                    }
-                },
-                computed: {
-                    isVisible: function() {
-                        return (this.filters.filterHideWithoutUsagesOrDependencies == false || (this.model.usages > 0 || (this.filters.filterShowOnlyKnownDependencies ? this.model.dependencies.filter(d => d.package != null).length : this.model.dependencies.length) > 0)) && (this.filters.filterHideWithOnlyOneVersion == false || (this.model.foundVersions.length != 1));
-                    }
-                },
-                methods: {
-                    toggleAll: function() {
-                        console.log("t");
-                    }
+                    return "";
                 }
-            });
-
-        Vue.component('gitproject',
-            {
-                template: '#gitproject-template',
-                props: {
-                    model: Object,
-                    filters: Object
-                },
-                data: function() {
-                    return {
-                    }
-                },
-                computed: {
-                    isVisible: function() {
-                        return (this.filters.filterHideIgnored == false || this.model.ignored == false) && (this.filters.filterHideWithoutProjects == false || this.model.projects.length > 0) && (this.filters.filterHideWithoutUsagesOrDependencies == false || this.model.projects.filter(p => p.usages > 0 || p.dependencies.length > 0).length > 0) && (this.filters.filterHideWithOnlyOneVersion == false || this.model.projects.filter(p => p.foundVersions.length !== 1).length > 0);
-                    }
-                },
-                methods: {
-                    toggleAll: function() {
-                        console.log("t");
-                    }
-                }
-            });
-
-        Vue.component('main-view',
-            {
-                template: '#main-template',
-                props: {
-                    model: Object
-                },
-                data: function() {
-                    return {
-                        filters: {
-                            filterHideIgnored: true,
-                            filterHideWithoutProjects: true,
-                            filterHideWithoutUsagesOrDependencies: true,
-                            filterHideWithOnlyOneVersion: false
-                        },
-                        reportText: "Press button above to load report",
-                        reportTextWithUsages: false
-                    }
-                },
-                computed: {
-                    allChecked: function() {
-
-
-                        return true;
-                    }
-                },
-                methods: {
-                    generateReportText: function() {
-                        var txt = "Unused/unknown dependencies:";
-
-                        var unknownDependencies = [];
-
-                        foreachGitProject(this.model,
-                            function(project, i, model) {
-                                foreachPackageProject(project,
-                                    function(packageProject, j, project) {
-                                        foreachDependency(packageProject,
-                                            function(dependency, k, packageProject) {
-                                                if (dependency.package == null) {
-                                                    if (unknownDependencies.filter(ud => ud.id === dependency.id).length == 0)
-                                                        unknownDependencies.push({ id: dependency.id, versions: [] });
-                                                    var unknownDependency = unknownDependencies.filter(ud => ud.id === dependency.id)[0];
-                                                    if (unknownDependency.versions.filter(v => v.version == dependency.version).length == 0)
-                                                        unknownDependency.versions.push({ version: dependency.version, usedBy: [] });
-                                                    var version = unknownDependency.versions.filter(v => v.version == dependency.version)[0];
-                                                    version.usedBy.push({ gitProjectName: dependency.parentProject.parentProject.name, csprojFilePath: dependency.parentProject.csprojFilePath });
-                                                }
-                                            });
-                                    });
-                            });
-
-                        for (var i = 0; i < unknownDependencies.length; i++) {
-                            txt += "\n";
-                            txt += "    Unused-PackageName: " + unknownDependencies[i].id;
-                            if (this.reportTextWithUsages === true)
-                                for (var j = 0; j < unknownDependencies[i].versions.length; j++) {
-                                    txt += "\n";
-                                    txt += "        " + unknownDependencies[i].versions[j].version;
-                                    for (var k = 0; k < unknownDependencies[i].versions[j].usedBy.length; k++) {
-                                        txt += "\n";
-                                        txt += "            " + unknownDependencies[i].versions[j].usedBy[k].gitProjectName;
-                                        txt += " -> " + unknownDependencies[i].versions[j].usedBy[k].csprojFilePath;
-                                    }
-                                }
-                        }
-
-                        return txt;
-                    }
-                }
-            });
-
-        var projectList = new Vue({
-            el: '#mainView',
-            data: {
-                mainModel: data
             }
         });
-    </script>
-}
+
+    Vue.component('dependency-item',
+        {
+            template: '#dependency-template',
+            props: {
+                model: Object,
+                filters: Object
+            },
+            data: function() {
+                return {
+                }
+            },
+            computed: {
+                isVisible: function() {
+                    return (this.filters.filterShowOnlyKnownDependencies === false || this.model.package != null);
+                }
+            },
+            methods: {
+                toggleAll: function() {
+                    console.log("t");
+                }
+            }
+        });
+
+    Vue.component('project-item',
+        {
+            template: '#project-template',
+            props: {
+                model: Object,
+                filters: Object
+            },
+            data: function() {
+                return {
+                    dependenciesExpanded: false,
+                    usedByExpanded: false,
+                    usedByOnlyMultiple: false
+                }
+            },
+            computed: {
+                isVisible: function() {
+                    return (this.filters.filterHideWithoutUsagesOrDependencies === false || (this.model.usages > 0 || (this.filters.filterShowOnlyKnownDependencies ? this.model.dependencies.filter(d => d.package != null).length : this.model.dependencies.length) > 0)) && (this.filters.filterHideWithOnlyOneVersion === false || (this.model.foundVersions.length !== 1));
+                }
+            },
+            methods: {
+                toggleAll: function() {
+                    console.log("t");
+                }
+            }
+        });
+
+    Vue.component('gitproject',
+        {
+            template: '#gitproject-template',
+            props: {
+                model: Object,
+                filters: Object
+            },
+            data: function() {
+                return {
+                }
+            },
+            computed: {
+                isVisible: function() {
+                    return (this.filters.filterHideIgnored === false || this.model.ignored === false) && (this.filters.filterHideWithoutProjects === false || this.model.projects.length > 0) && (this.filters.filterHideWithoutUsagesOrDependencies === false || this.model.projects.filter(p => p.usages > 0 || p.dependencies.length > 0).length > 0) && (this.filters.filterHideWithOnlyOneVersion !== false || this.model.projects.filter(p => p.foundVersions.length !== 1).length > 0);
+                }
+            },
+            methods: {
+                toggleAll: function() {
+                    console.log("t");
+                }
+            }
+        });
+
+    Vue.component('main-view',
+        {
+            template: '#main-template',
+            props: {
+                model: Object
+            },
+            data: function() {
+                return {
+                    filters: {
+                        filterHideIgnored: true,
+                        filterHideWithoutProjects: true,
+                        filterHideWithoutUsagesOrDependencies: true,
+                        filterHideWithOnlyOneVersion: false
+                    },
+                    reportText: "Press button above to load report",
+                    reportTextWithUsages: false
+                }
+            },
+            computed: {
+                allChecked: function() {
+
+
+                    return true;
+                }
+            },
+            beforeCreate: function() {
+                console.log("beforeCreate");
+            },
+            created: function() {
+                console.log("created");
+            },
+            beforeMount: function() {
+                console.log("beforeMount");
+            },
+            mounted: function() {
+                console.log("mounted");
+            },
+            methods: {
+                generateReportText: function() {
+                    var txt = "Unused/unknown dependencies:";
+
+                    var unknownDependencies = [];
+
+                    foreachGitProject(this.model,
+                        function(project) {
+                            foreachPackageProject(project,
+                                function(packageProject) {
+                                    foreachDependency(packageProject,
+                                        function(dependency) {
+                                            if (dependency.package == null) {
+                                                if (unknownDependencies.filter(ud => ud.id === dependency.id).length === 0)
+                                                    unknownDependencies.push({ id: dependency.id, versions: [] });
+                                                var unknownDependency = unknownDependencies.filter(ud => ud.id === dependency.id)[0];
+                                                if (unknownDependency.versions.filter(v => v.version === dependency.version).length === 0)
+                                                    unknownDependency.versions.push({ version: dependency.version, usedBy: [] });
+                                                var version = unknownDependency.versions.filter(v => v.version === dependency.version)[0];
+                                                version.usedBy.push({ gitProjectName: dependency.parentProject.parentProject.name, csprojFilePath: dependency.parentProject.csprojFilePath });
+                                            }
+                                        });
+                                });
+                        });
+
+                    for (var i = 0; i < unknownDependencies.length; i++) {
+                        txt += "\n";
+                        txt += "    Unused-PackageName: " + unknownDependencies[i].id;
+                        if (this.reportTextWithUsages === true)
+                            for (var j = 0; j < unknownDependencies[i].versions.length; j++) {
+                                txt += "\n";
+                                txt += "        " + unknownDependencies[i].versions[j].version;
+                                for (var k = 0; k < unknownDependencies[i].versions[j].usedBy.length; k++) {
+                                    txt += "\n";
+                                    txt += "            " + unknownDependencies[i].versions[j].usedBy[k].gitProjectName;
+                                    txt += " -> " + unknownDependencies[i].versions[j].usedBy[k].csprojFilePath;
+                                }
+                            }
+                    }
+
+                    return txt;
+                }
+            }
+        });
+
+    var data = { projects: [], loaded: false, loadingStep: 0 };
+
+    var requestProjectInformation = function(proj) {
+
+        var params = {
+            projectId: proj.id
+        };
+        return fetch("@Url.Action("GetNugetInformation")?" + $.param(params))
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(json) {
+                var project = $.extend({}, json);
+
+                foreachPackageProject(project,
+                    function(packageProject, i, project) {
+                        packageProject.parentProject = project; // make it possible to navigate back
+                        packageProject.usedBy = [];
+                        packageProject.usages = 0;
+                        packageProject.foundVersions = [];
+
+                        foreachDependency(packageProject,
+                            function(dependency, m, packageProject) {
+                                dependency.parentProject = packageProject;
+                            });
+                    });
+
+                $.extend(proj, project);
+                proj.loaded = true;
+            });
+    }
+
+    var fetchAllProjects = function() {
+        fetch("@Url.Action("GetNugetProjects")")
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(json) {
+                var ids = json.projectIds;
+                var requests = [];
+                data.loadingStep++;
+                for (var i = 0; i < ids.length; i++) {
+                    var proj = {
+                        id: ids[i],
+                        loaded: false
+                    };
+                    data.projects.push(proj);
+                    requests.push(requestProjectInformation(proj));
+                }
+
+                Promise.all(requests).then(function() {
+                    data.loadingStep++;
+                    initializeData(data);
+                    data.loaded = true;
+                    
+                });
+            });
+    }
+
+
+    var projectList = new Vue({
+        el: '#mainView',
+        data: {
+            mainModel: data
+        },
+        computed: {
+            loadingText: function () {
+                switch (this.mainModel.loadingStep) {
+                    case 0:
+                        return "Waiting for page load";
+                    case 1:
+                        return "Requesting list of projects";
+                    case 2:
+                        return "Getting all projects (" + this.mainModel.projects.filter(p => p.loaded).length + "/" + this.mainModel.projects.length + ")";
+                    case 3:
+                        return "Initializing data";
+                    default:
+                        return "Unknown step: "+this.mainModel.loadingStep;
+                }
+            }
+        },
+        beforeCreate: function() {
+            data.loadingStep++;
+            fetchAllProjects();
+        }
+    });
+</script>
