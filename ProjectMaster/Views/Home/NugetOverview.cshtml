@@ -162,20 +162,28 @@ else
                         <div class="panel panel-default">
                             <div class="panel-body">
                                 <div class="panel panel-default" v-for="foundVersion in model.foundVersions">
-                                    <div class="panel-heading">{{foundVersion}}</div>
+                                    <div class="panel-heading">{{foundVersion}} <label><input type="checkbox" v-model="usedByOnlyMultiple" /> Only multiple versions</label></div>
                                     <div class="panel-body">
-                                        <div class="panel panel-default" v-for="dependency in model.usedBy" v-if="dependency.version == foundVersion">
-                                            <div class="panel-heading">
-                                                {{ dependency.parentProject.parentProject.name }} -> {{ dependency.parentProject.csprojFilePath }}
-                                            </div>
-                                            
-                                        </div>
+                                        <usedby-item v-for="dependency in model.usedBy" v-if="dependency.version == foundVersion && (usedByOnlyMultiple === false || (dependency.parentProject != null && dependency.parentProject.foundVersions.length > 1))" :model="dependency" :filters="filters">
+                                        </usedby-item>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="usedby-template">
+        <div class="panel panel-default">
+            <div class="panel-heading" @@click="expanded = !expanded">
+                {{ model.parentProject.parentProject.name }} -> {{ model.parentProject.csprojFilePath }}
+                <span v-if="model.parentProject.foundVersions.length > 1" class="small text-danger">(<span class="glyphicon glyphicon-warning-sign"></span> Multple versions used)</span>
+            </div>
+            <div class="panel-body" v-if="expanded">
+                <project-item :model="model.parentProject" :filters="filters"></project-item>
             </div>
         </div>
     </script>
@@ -299,6 +307,32 @@ else
                     });
             });*/
 
+        Vue.component('usedby-item',
+            {
+                template: '#usedby-template',
+                props: {
+                    model: Object,
+                    filters: Object
+                },
+                data: function() {
+                    return {
+                        expanded: false,
+                        report: ""
+                    }
+                },
+                computed: {
+                    isVisible: function() {
+                        return (this.filters.filterShowOnlyKnownDependencies == false || this.model.package != null);
+                    }
+                },
+                methods: {
+                    toggleAll: function() {
+
+                        return "";
+                    }
+                }
+            });
+
         Vue.component('dependency-item',
             {
                 template: '#dependency-template',
@@ -332,7 +366,8 @@ else
                 data: function() {
                     return {
                         dependenciesExpanded: false,
-                        usedByExpanded: false
+                        usedByExpanded: false,
+                        usedByOnlyMultiple: false
                     }
                 },
                 computed: {
