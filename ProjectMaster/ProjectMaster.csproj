@@ -6,12 +6,16 @@
 
   <ItemGroup>
     <Compile Remove="projects\**" />
+    <Compile Remove="Publish\**" />
     <Compile Remove="wwwroot\lib\**" />
     <Content Remove="projects\**" />
+    <Content Remove="Publish\**" />
     <Content Remove="wwwroot\lib\**" />
     <EmbeddedResource Remove="projects\**" />
+    <EmbeddedResource Remove="Publish\**" />
     <EmbeddedResource Remove="wwwroot\lib\**" />
     <None Remove="projects\**" />
+    <None Remove="Publish\**" />
     <None Include="wwwroot\lib\**">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
