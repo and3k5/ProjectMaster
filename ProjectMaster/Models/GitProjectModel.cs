@@ -4,6 +4,7 @@ using System.Linq;
 using LibGit2Sharp;
 using LibGit2Sharp.Handlers;
 using ProjectMaster.DataModels;
+using ProjectMaster.Utilities;
 
 namespace ProjectMaster.Models
 {
@@ -56,12 +57,9 @@ namespace ProjectMaster.Models
 
             private static DirectoryInfo GetGitRootDir()
             {
-                var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-                var gitRootStr = Path.Combine(baseDir, "And3k5", "ProjectMaster", "projects", "git");
-                var gitRootDir = new DirectoryInfo(gitRootStr);
-                if (!gitRootDir.Exists)
-                    gitRootDir.Create();
-                return gitRootDir;
+                var baseDir = ApplicationDataUtility.GetBaseFolder(true);
+                var gitRootStr = Path.Combine(baseDir, "projects", "git");
+                return ApplicationDataUtility.CreatePathIfMissing(gitRootStr);
             }
 
             private void Fetch()

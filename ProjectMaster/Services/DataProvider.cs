@@ -1,7 +1,7 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using LiteDB;
 using ProjectMaster.DataModels;
+using ProjectMaster.Utilities;
 
 namespace ProjectMaster.Services
 {
@@ -11,12 +11,12 @@ namespace ProjectMaster.Services
 
         public DataProvider()
         {
-            this.Database = new LiteDatabase(Path.Combine(GetBasePath(), "And3k5", "ProjectMaster", "Data.db"));
+            Database = new LiteDatabase(Path.Combine(GetBasePath(), "Data.db"));
         }
 
         private static string GetBasePath()
         {
-            return Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            return ApplicationDataUtility.GetBaseFolder(true);
         }
 
         public LiteCollection<GitProjectDataModel> GetGitProjectCollection()
