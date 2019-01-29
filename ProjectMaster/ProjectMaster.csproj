@@ -12,7 +12,9 @@
     <EmbeddedResource Remove="projects\**" />
     <EmbeddedResource Remove="wwwroot\lib\**" />
     <None Remove="projects\**" />
-    <None Remove="wwwroot\lib\**" />
+    <None Include="wwwroot\lib\**">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
