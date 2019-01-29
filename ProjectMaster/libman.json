@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "defaultProvider": "cdnjs",
+  "libraries": [
+    {
+      "provider": "cdnjs",
+      "library": "twitter-bootstrap@3.3.7",
+      "destination": "wwwroot/lib/twitter-bootstrap/"
+    },
+    {
+      "provider": "cdnjs",
+      "library": "vue@2.5.22",
+      "destination": "wwwroot/lib/vue/"
+    },
+    {
+      "provider": "cdnjs",
+      "library": "jquery-validation-unobtrusive@3.2.11",
+      "destination": "wwwroot/lib/jquery-validation-unobtrusive/"
+    },
+    {
+      "provider": "cdnjs",
+      "library": "jquery@3.3.1",
+      "destination": "wwwroot/lib/jquery/"
+    }
+  ]
+}
