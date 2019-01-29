@@ -2,6 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.0</TargetFramework>
+    <Authors>And3k5</Authors>
+    <PackageProjectUrl>https://github.com/and3k5/ProjectMaster</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/and3k5/ProjectMaster/blob/master/LICENSE</PackageLicenseUrl>
+    <Copyright>And3k5</Copyright>
+    <RepositoryUrl>https://github.com/and3k5/ProjectMaster</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
