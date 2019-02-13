@@ -343,7 +343,7 @@ namespace ProjectMaster.Controllers
                             continue;
                         }
 
-                        if ((((csprojToken["Project"] as JObject)?["PropertyGroup"].ForceToArray().GetObjectOfArrayChildren("TargetFramework").SingleOrDefault() as JValue)?.Value as string) == "netcoreapp2.0")
+                        if (IsCoreOrStandard(csprojToken))
                         {
                             continue;
                         }
@@ -425,6 +425,26 @@ namespace ProjectMaster.Controllers
 
                 return nugetInfo;
             }
+        }
+
+        private static bool IsCoreOrStandard(JToken csprojToken)
+        {
+            var propertyGroup = (csprojToken["Project"] as JObject)?["PropertyGroup"].ForceToArray();
+            var singleStr = propertyGroup?.GetObjectOfArrayChildren("TargetFramework").SingleOrDefault()
+                ?.Value<string>();
+            if (MatchesCoreOrStandard(singleStr))
+                return true;
+            var multiString = propertyGroup?.GetObjectOfArrayChildren("TargetFrameworks").SingleOrDefault()
+                ?.Value<string>();
+            var multiStrings = multiString?.Split(";");
+
+            return multiStrings?.Any(MatchesCoreOrStandard) == true;
+        }
+
+        private static bool MatchesCoreOrStandard(string t)
+        {
+            return t != null && (t.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase) ||
+                                 t.StartsWith("netcoreapp", StringComparison.OrdinalIgnoreCase));
         }
     }
 }
